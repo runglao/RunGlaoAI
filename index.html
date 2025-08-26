@@ -1,0 +1,131 @@
+(cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF'
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -0,0 +1,124 @@
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8" />
++    <meta name="viewport" content="width=device-width, initial-scale=1" />
++    <meta name="description" content="A fast, minimal one-page site built with no dependencies." />
++    <title>Acme — Simple One‑Page</title>
++    <link rel="stylesheet" href="./styles.css" />
++  </head>
++  <body>
++    <a class="skip-link" href="#main">Skip to content</a>
++
++    <header class="site-header">
++      <nav class="container nav-bar" aria-label="Primary">
++        <a class="logo" href="#home" aria-label="Acme Home">Acme</a>
++        <ul class="nav">
++          <li><a href="#features">Features</a></li>
++          <li><a href="#contact">Contact</a></li>
++          <li><a class="btn btn-primary" href="#cta">Get Started</a></li>
++        </ul>
++      </nav>
++    </header>
++
++    <main id="main">
++      <section id="home" class="hero container" aria-labelledby="hero-title">
++        <div class="hero-content">
++          <h1 id="hero-title">Build something simple, fast, and delightful</h1>
++          <p class="lead">
++            A tiny starter that prioritizes performance, accessibility, and zero bloat. No frameworks, no build step — just the web.
++          </p>
++          <div class="actions">
++            <a class="btn btn-primary" href="#cta">Get Started</a>
++            <a class="btn btn-ghost" href="#features">Learn More</a>
++          </div>
++        </div>
++        <div class="hero-art" aria-hidden="true">
++          <svg viewBox="0 0 600 400" role="img" aria-label="" focusable="false">
++            <defs>
++              <linearGradient id="g" x1="0" x2="1">
++                <stop offset="0%" stop-color="var(--color-accent)" />
++                <stop offset="100%" stop-color="var(--color-accent-2)" />
++              </linearGradient>
++            </defs>
++            <rect x="0" y="0" width="600" height="400" fill="url(#g)" rx="24" />
++            <g opacity="0.15">
++              <circle cx="120" cy="90" r="60" fill="#fff" />
++              <circle cx="520" cy="300" r="80" fill="#fff" />
++              <circle cx="340" cy="160" r="40" fill="#fff" />
++            </g>
++          </svg>
++        </div>
++      </section>
++
++      <section id="features" class="section">
++        <div class="container">
++          <h2>Everything you need, nothing you don't</h2>
++          <div class="features-grid">
++            <article class="card">
++              <div class="icon" aria-hidden="true">⚡</div>
++              <h3>Fast by default</h3>
++              <p>Zero dependencies, minimal CSS and JS, and optimized markup keep things speedy.</p>
++            </article>
++            <article class="card">
++              <div class="icon" aria-hidden="true">🔒</div>
++              <h3>Accessible</h3>
++              <p>Semantic HTML, focus styles, skip link, and color-contrast mindful design.</p>
++            </article>
++            <article class="card">
++              <div class="icon" aria-hidden="true">🎯</div>
++              <h3>Responsive</h3>
++              <p>Fluid layout, adaptive grid, and system font stack for crisp rendering.</p>
++            </article>
++            <article class="card">
++              <div class="icon" aria-hidden="true">🧰</div>
++              <h3>Simple</h3>
++              <p>Drop these three files on any static host — you're live in seconds.</p>
++            </article>
++          </div>
++        </div>
++      </section>
++
++      <section id="cta" class="section cta">
++        <div class="container cta-inner">
++          <h2>Ready to launch?</h2>
++          <p>Start with this clean foundation and ship your idea today.</p>
++          <a class="btn btn-primary" href="#contact">Contact Us</a>
++        </div>
++      </section>
++
++      <section id="contact" class="section">
++        <div class="container">
++          <h2>Contact</h2>
++          <form class="contact-form" aria-label="Contact form">
++            <div class="form-row">
++              <label for="name">Name</label>
++              <input id="name" name="name" type="text" autocomplete="name" required />
++            </div>
++            <div class="form-row">
++              <label for="email">Email</label>
++              <input id="email" name="email" type="email" autocomplete="email" required />
++            </div>
++            <div class="form-row">
++              <label for="message">Message</label>
++              <textarea id="message" name="message" rows="5" required></textarea>
++            </div>
++            <button class="btn btn-primary" type="submit">Send</button>
++            <p class="form-hint" role="status" aria-live="polite">This demo form does not submit.</p>
++          </form>
++        </div>
++      </section>
++    </main>
++
++    <footer class="site-footer">
++      <div class="container footer-inner">
++        <p>© <span id="year"></span> Acme Co. All rights reserved.</p>
++        <a class="back-to-top" href="#home">Back to top ↑</a>
++      </div>
++    </footer>
++
++    <script defer src="./script.js"></script>
++  </body>
++  </html>
++
++
+EOF
+)
