@@ -1,9 +1,4 @@
-(cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF'
-diff --git a/script.js b/script.js
---- a/script.js
-+++ b/script.js
-@@ -0,0 +1,35 @@
-+// Minimal, deferred script to keep bundle tiny and fast
+
 +(function () {
 +  var yearEl = document.getElementById('year');
 +  if (yearEl) yearEl.textContent = String(new Date().getFullYear());
