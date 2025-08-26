@@ -1,13 +1,4 @@
-(cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF'
-diff --git a/styles.css b/styles.css
---- a/styles.css
-+++ b/styles.css
-@@ -0,0 +1,180 @@
-+/*
-+  Minimal, responsive styles. System font stack for speed and clarity.
-+  Keep CSS small for quick loads and great Lighthouse scores.
-+*/
-+
+
 +:root {
 +  --color-bg: #0b0d12;
 +  --color-surface: #11151c;
