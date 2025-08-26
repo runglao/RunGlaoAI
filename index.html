@@ -5,7 +5,7 @@
 +    <meta name="viewport" content="width=device-width, initial-scale=1" />
 +    <meta name="description" content="A fast, minimal one-page site built with no dependencies." />
 +    <title>RunGlaoAI</title>
-+    <link rel="style" href="./styles.css" />
++    <link rel="styleheet" href="./styles.css" />
 +  </head>
 +  <body>
 +    <a class="skip-link" href="#main">Skip to content</a>
@@ -117,17 +117,12 @@
 +      </div>
 +    </footer>
 +
-<style>
+<styleheet>
   (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF'
 diff --git a/styles.css b/styles.css
 --- a/styles.css
 +++ b/styles.css
-@@ -0,0 +1,180 @@
-+/*
-+  Minimal, responsive styles. System font stack for speed and clarity.
-+  Keep CSS small for quick loads and great Lighthouse scores.
-+*/
-+
+
 +:root {
 +  --color-bg: #0b0d12;
 +  --color-surface: #11151c;
@@ -305,7 +300,7 @@ diff --git a/styles.css b/styles.css
 +
 EOF
 )
-</style>
+</styleheet>
   
 +    <script defer src="./script.js"></script>
   <script> (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF'
