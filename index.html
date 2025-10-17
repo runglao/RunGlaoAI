@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyCryptoFinance (MCF) Minter & Staking</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <link rel="stylesheet" href="Style.css">
+
+    <link type="image/x-icon" href="https://i.ibb.co/m58shBg0/image-1.png" rel="shortcut icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
+    
+</head>
+
+<body>
+    
+    <canvas id="neural-net-background"></canvas>
+
+    <header>
+        <h1 class="logo-title">
+            <img src="https://i.ibb.co/Dg6LHPHY/image.png" alt="$">
+            MyCryptoFinance
+        </h1>
+        <div class="wallet-info">
+            <div id="networkDisplay" class="info-tag hidden">Сеть: <span></span></div>
+            <div id="balanceDisplay" class="info-tag hidden">Баланс ETH: <span></span></div>
+            <button id="addSepoliaButton" onclick="addSepoliaChain()">Переключить на Sepolia</button>
+            <button id="connectButton">Подключить кошелек</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="app-box">
+            <h2>Минт токена MyCryptoFinance (MCF)</h2>
+            <div id="mintForm" class="hidden">
+                <div class="calculator">
+                    <button id="addTokenButton" onclick="addTokenToMetamask()" style="margin-bottom: 20px;">
+                        Добавить Токен MCF в Кошелек
+                    </button>
+                    <h4>Калькулятор: ETH в MCF</h4>
+                    <input type="number" id="ethAmount" placeholder="Введите сумму ETH" oninput="calculateMcfForEth()">
+                    <p id="mcfResult">Вы получите: 0 MCF</p>
+                </div>
+
+                <h4>Сумма для минта</h4>
+                <input type="number" id="mintAmount" placeholder="Количество MCF" min="1" required oninput="updateCost()">
+                <p id="costDisplay">Стоимость: 0 ETH</p>
+                
+                <button id="mintButton" class="button-mint" onclick="mintTokens()">Заминтить MCF</button>
+            </div>
+            <p id="mintStatus">Нажмите "Подключить кошелек"</p>
+        </div>
+        
+        <div class="app-box staking-box">
+            <h2>Стейкинг токена MCF</h2>
+            <div id="stakingForm" class="hidden">
+                <p>Ваш MCF баланс: <span id="mcfBalanceDisplay">...</span> MCF</p>
+                <!-- <button class="button-approve" onclick="approveStaking()">Разрешить стейкинг (Approve)</button> -->
+                
+                <h3>Ваши активные стейки</h3>
+                <div id="userStakesContainer">
+                    <p id="noStakesMessage" style="color: #ccc;">Нет активных заблокированных стейков.</p>
+                </div>
+                <h4>Новая операция стейкинга</h4>
+                <input type="number" id="stakeAmount" placeholder="Количество MCF для стейкинга" min="1">
+                <select id="stakeTier">
+                    <option value="0">Гибкий (10.5% APY)</option>
+                    <option value="1">Блокировка 7 дней (15.0% APY)</option>
+                    <option value="2">Блокировка 30 дней (18.0% APY)</option>
+                    <option value="3">Блокировка 90 дней (22.5% APY)</option>
+                </select>
+                
+                <button class="button-approve" onclick="approveStaking()">Разрешить стейкинг (Approve)</button>
+                <button class="button-stake" onclick="stakeTokens()">Застейкать</button>
+
+                
+            </div>
+            <p id="stakingStatus">Нажмите "Подключить кошелек"</p>
+        </div>
+    </main>
+
+    <footer>
+        <p>Контактная информация</p>
+        <div class="social-links">
+            <a href="https://x.com/MyCryptoFinance" target="_blank">Twitter</a>
+            <a href="https://youtube.com/@runglaocrypto?si=AlMNbXqpR3rWAytn" target="_blank">YouTube</a>
+            <a href="https://t.me/+bU1tw5ma8Uw1NzMy" target="_blank">Telegram</a>
+        </div>
+        <p>&copy; 2025 MyCryptoFinance</p>
+    </footer>
+
+
+
+    
+    <script>
+
+    // --- КОНТРАКТ МИНТИНГА (MCF Token) ---
+const TOKEN_CONTRACT_ADDRESS = "0xb66008C221CE3699c7F50AebB07898695845e95f";
+const TOKEN_ABI = [{"inputs":[{"internalType":"address","name":"initialOwner","type":"address"},{"internalType":"address payable","name":"_treasuryWallet","type":"address"},{"internalType":"uint256","name":"_initialMintPrice","type":"uint256"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"allowance","type":"uint256"},{"internalType":"uint256","name":"needed","type":"uint256"}],"name":"ERC20InsufficientAllowance","type":"error"},{"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"balance","type":"uint256"},{"internalType":"uint256","name":"needed","type":"uint256"}],"name":"ERC20InsufficientBalance","type":"error"},{"inputs":[{"internalType":"address","name":"approver","type":"address"}],"name":"ERC20InvalidApprover","type":"error"},{"inputs":[{"internalType":"address","name":"receiver","type":"address"}],"name":"ERC20InvalidReceiver","type":"error"},{"inputs":[{"internalType":"address","name":"sender","type":"address"}],"name":"ERC20InvalidSender","type":"error"},{"inputs":[{"internalType":"address","name":"spender","type":"address"}],"name":"ERC20InvalidSpender","type":"error"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"OwnableInvalidOwner","type":"error"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"OwnableUnauthorizedAccount","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"spender","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"inputs":[],"name":"MAX_SUPPLY","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"mint","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[],"name":"mintPrice","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"newPrice","type":"uint256"}],"name":"setMintPrice","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address payable","name":"newTreasury","type":"address"}],"name":"setTreasuryWallet","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"transfer","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"transferFrom","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"treasuryWallet","outputs":[{"internalType":"address payable","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"withdrawAccidentalNativeTokens","outputs":[],"stateMutability":"nonpayable","type":"function"}]; // Оставляем ваш ABI
+// --- КОНТРАКТ СТЕЙКИНГА (MCF Staking) ---
+const STAKING_CONTRACT_ADDRESS = "0x92061D3Aedb0E06B0c09785954640FA8caB64472";
+const STAKING_ABI = [{"inputs":[{"internalType":"address","name":"_stakingTokenAddress","type":"address"},{"internalType":"address","name":"initialOwner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"OwnableInvalidOwner","type":"error"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"OwnableUnauthorizedAccount","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"user","type":"address"},{"indexed":false,"internalType":"uint256","name":"stakeId","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"reward","type":"uint256"},{"indexed":false,"internalType":"enum MCFStaking.StakingTier","name":"tier","type":"uint8"},{"indexed":false,"internalType":"uint256","name":"timestamp","type":"uint256"}],"name":"RewardsClaimed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"user","type":"address"},{"indexed":false,"internalType":"uint256","name":"stakeId","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"enum MCFStaking.StakingTier","name":"tier","type":"uint8"},{"indexed":false,"internalType":"uint256","name":"timestamp","type":"uint256"}],"name":"Staked","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"user","type":"address"},{"indexed":false,"internalType":"uint256","name":"stakeId","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"enum MCFStaking.StakingTier","name":"tier","type":"uint8"},{"indexed":false,"internalType":"uint256","name":"timestamp","type":"uint256"}],"name":"Unstaked","type":"event"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"allStakes","outputs":[{"internalType":"uint256","name":"stakeId","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"startTime","type":"uint256"},{"internalType":"uint256","name":"lockDuration","type":"uint256"},{"internalType":"enum MCFStaking.StakingTier","name":"tier","type":"uint8"},{"internalType":"bool","name":"isActive","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"stakeId","type":"uint256"}],"name":"calculateRewardForLot","outputs":[{"internalType":"uint256","name":"reward","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"user","type":"address"}],"name":"getAllUserStakes","outputs":[{"components":[{"internalType":"uint256","name":"stakeId","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"startTime","type":"uint256"},{"internalType":"uint256","name":"lockDuration","type":"uint256"},{"internalType":"enum MCFStaking.StakingTier","name":"tier","type":"uint8"},{"internalType":"bool","name":"isActive","type":"bool"}],"internalType":"struct MCFStaking.Stake[]","name":"","type":"tuple[]"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"tokenAddress","type":"address"}],"name":"recoverAccidentalERC20","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"enum MCFStaking.StakingTier","name":"tier","type":"uint8"},{"internalType":"uint256","name":"newLockDuration","type":"uint256"},{"internalType":"uint256","name":"newRewardMultiplier","type":"uint256"}],"name":"setTierConfig","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"enum MCFStaking.StakingTier","name":"tier","type":"uint8"}],"name":"stake","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"},{"internalType":"uint256","name":"","type":"uint256"}],"name":"stakesByAddress","outputs":[{"internalType":"uint256","name":"stakeId","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"startTime","type":"uint256"},{"internalType":"uint256","name":"lockDuration","type":"uint256"},{"internalType":"enum MCFStaking.StakingTier","name":"tier","type":"uint8"},{"internalType":"bool","name":"isActive","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"stakingToken","outputs":[{"internalType":"contract IERC20","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"enum MCFStaking.StakingTier","name":"","type":"uint8"}],"name":"tierConfigs","outputs":[{"internalType":"uint256","name":"lockDuration","type":"uint256"},{"internalType":"uint256","name":"rewardMultiplier","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalStaked","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"stakeId","type":"uint256"}],"name":"unstakeLot","outputs":[],"stateMutability":"nonpayable","type":"function"}]; // Оставляем ваш ABI
+
+
+// Глобальные переменные
+let provider, signer, tokenContract, stakingContract, currentAccount = null;
+let dynamicMintPrice = null;
+const EIGHTEEN_DECIMALS = ethers.BigNumber.from(10).pow(18);
+let timerIntervals = {};
+
+// Элементы DOM - Общие
+const connectButton = document.getElementById('connectButton');
+const networkDisplay = document.querySelector('#networkDisplay span');
+const balanceDisplay = document.querySelector('#balanceDisplay span');
+
+// Элементы DOM - Минтинг
+const mintStatus = document.getElementById('mintStatus');
+const mintForm = document.getElementById('mintForm');
+const mintAmountInput = document.getElementById('mintAmount');
+const costDisplay = document.getElementById('costDisplay');
+const ethAmountInput = document.getElementById('ethAmount');
+const mcfResultDisplay = document.getElementById('mcfResult');
+        
+// Элементы DOM - Стейкинг
+const stakingForm = document.getElementById('stakingForm');
+const stakingStatus = document.getElementById('stakingStatus');
+const mcfBalanceDisplay = document.getElementById('mcfBalanceDisplay');
+const stakeAmountInput = document.getElementById('stakeAmount');
+const stakeTierSelect = document.getElementById('stakeTier');
+const userStakesContainer = document.getElementById('userStakesContainer');
+
+// Конфигурация тиров (для отображения)
+const TIER_CONFIGS = {
+    0: { name: "Гибкий", apy: "10.5%" },
+    1: { name: "7 дней", apy: "15.0%" },
+    2: { name: "30 дней", apy: "18.0%" },
+    3: { name: "90 дней", apy: "22.5%" }
+};
+
+// --- ФОРМАТИРОВАНИЕ ДАННЫХ ---
+function formatMcf(weiValue) {
+    if (!weiValue || weiValue.isZero()) return '0';
+    return ethers.utils.formatUnits(weiValue, 18);
+}
+
+function parseMcf(mcfAmount) {
+    if (isNaN(mcfAmount) || mcfAmount === '') return ethers.BigNumber.from(0);
+    try {
+        return ethers.utils.parseUnits(String(mcfAmount), 18);
+    } catch (e) {
+        console.error("Ошибка парсинга MCF:", e);
+        return ethers.BigNumber.from(0);
+    }
+}
+
+function formatTime(seconds) {
+    if (seconds <= 0) return "Разблокирован";
+    const d = Math.floor(seconds / (3600 * 24));
+    const h = Math.floor((seconds % (3600 * 24)) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    
+    return `${d}д ${h}ч ${m}м ${s}с`;
+}
+
+
+// --- ФУНКЦИИ ТАЙМЕРА ---
+function startCountdown(stakeId, unlockTimestamp) {
+    if (timerIntervals[stakeId]) {
+        clearInterval(timerIntervals[stakeId]);
+    }
+
+    const timerElement = document.getElementById(`timer-${stakeId}`);
+    const unstakeButton = document.getElementById(`unstake-btn-${stakeId}`);
+    const unlockTimeMs = unlockTimestamp * 1000;
+
+    function updateTimer() {
+        const now = Date.now();
+        const remainingTimeMs = unlockTimeMs - now;
+
+        if (timerElement) {
+            if (remainingTimeMs <= 0) {
+                timerElement.textContent = "РАЗБЛОКИРОВАН";
+                timerElement.style.color = '#2ecc71';
+                if (unstakeButton) {
+                    unstakeButton.disabled = false;
+                    unstakeButton.textContent = "Снять стейк (Unstake)";
+                }
+                clearInterval(timerIntervals[stakeId]);
+            } else {
+                const remainingSeconds = Math.floor(remainingTimeMs / 1000);
+                timerElement.textContent = formatTime(remainingSeconds);
+                if (unstakeButton) {
+                    unstakeButton.disabled = true;
+                    unstakeButton.textContent = `Разблокировка через...`;
+                }
+            }
+        } else {
+            clearInterval(timerIntervals[stakeId]);
+        }
+    }
+
+    updateTimer();
+    timerIntervals[stakeId] = setInterval(updateTimer, 1000);
+}
+
+
+// --- ФУНКЦИИ СТЕЙКИНГА ---
+
+async function loadAllStakes() {
+    if (!currentAccount || !stakingContract) {
+        return;
+    }
+
+    Object.values(timerIntervals).forEach(clearInterval);
+    timerIntervals = {};
+    userStakesContainer.innerHTML = ''; 
+    stakingStatus.textContent = 'Загрузка ваших стейков...';
+
+    // *** ИСПРАВЛЕНИЕ: Делаем форму видимой сразу после начала загрузки ***
+    if (stakingForm) {
+        stakingForm.classList.remove('hidden');
+    }
+
+    try {
+        const userStakesArray = await stakingContract.getAllUserStakes(currentAccount);
+
+        if (userStakesArray.length === 0) {
+            userStakesContainer.innerHTML = `<p id="noStakesMessage" style="color: #ccc;">Нет активных заблокированных стейков.</p>`;
+            stakingStatus.textContent = '';
+            return;
+        }
+
+        let flexibleAmount = ethers.BigNumber.from(0);
+        
+        for (const stake of userStakesArray) {
+            if (!stake.isActive) continue;
+
+            const stakeId = stake.stakeId.toString();
+            const amount = stake.amount;
+            const startTime = stake.startTime.toNumber(); 
+            const lockDuration = stake.lockDuration.toNumber();
+            const tierId = stake.tier.hasOwnProperty('_hex') 
+            ? stake.tier.toNumber() 
+            : stake.tier;
+            const unlockTimestamp = startTime + lockDuration;
+
+            if (tierId === 0) {
+                flexibleAmount = flexibleAmount.add(amount);
+                continue;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'stake-card';
+            card.innerHTML = `
+                <h4>Tier ${tierId}: ${TIER_CONFIGS[tierId].name} (${TIER_CONFIGS[tierId].apy} APY)</h4>
+                <p>Сумма: <strong>${parseFloat(formatMcf(amount)).toFixed(2)} MCF</strong></p>
+                <p>Начало: ${new Date(startTime * 1000).toLocaleString()}</p>
+                <div class="timer-display" id="timer-${stakeId}">...</div>
+                <button class="button-unstake" id="unstake-btn-${stakeId}" data-stake-id="${stakeId}" onclick="unstakeLot(${stakeId})" disabled>
+                    Разблокировка через...
+                </button>
+            `;
+            userStakesContainer.appendChild(card);
+            
+            startCountdown(stakeId, unlockTimestamp);
+        }
+
+        if (!flexibleAmount.isZero()) {
+            let rewardWei = ethers.BigNumber.from(0);
+            try {
+                // *** ИСПРАВЛЕНИЕ: ПРОВЕРЬТЕ, что ваша функция называется calculateRewardForTier(address, uint8) ***
+                rewardWei = await stakingContract.calculateRewardForTier(currentAccount, 0); 
+            } catch (e) {
+                console.warn("Не удалось получить награду для гибкого стейка. Проверьте ABI на calculateRewardForTier.", e);
+            }
+            
+            const flexibleCard = document.createElement('div');
+            flexibleCard.className = 'stake-card flexible-card';
+            flexibleCard.innerHTML = `
+                <h4>Tier 0: Гибкий (${TIER_CONFIGS[0].apy} APY)</h4>
+                <p>Общая сумма: <strong>${parseFloat(formatMcf(flexibleAmount)).toFixed(2)} MCF</strong></p>
+                <p>Награда: <strong>${parseFloat(formatMcf(rewardWei)).toFixed(4)} MCF</strong></p>
+                <button class="button-unstake" data-tier-id="0" onclick="unstakeTier(0)">
+                    Снять гибкий стейк & Забрать награду
+                </button>
+            `;
+            userStakesContainer.insertBefore(flexibleCard, userStakesContainer.firstChild); 
+        }
+
+        stakingStatus.textContent = '';
+        
+    } catch (err) {
+        console.error("КРИТИЧЕСКАЯ ОШИБКА загрузки лотов стейкинга:", err);
+        stakingStatus.textContent = `❌ Ошибка: Не удалось загрузить лоты. Проверьте ABI/адрес контракта стейкинга.`;
+        userStakesContainer.innerHTML = `<p id="noStakesMessage" style="color: #ccc;">Не удалось загрузить лоты. Проверьте консоль для деталей.</p>`;
+    }
+}
+
+async function updateMcfBalance() {
+    if (!currentAccount || !tokenContract) return;
+
+    try {
+        const mcfBalanceWei = await tokenContract.balanceOf(currentAccount);
+        mcfBalanceDisplay.textContent = parseFloat(formatMcf(mcfBalanceWei)).toFixed(2);
+    } catch (err) {
+        console.error("Ошибка обновления баланса MCF:", err);
+        mcfBalanceDisplay.textContent = 'Ошибка';
+    }
+}
+
+async function updateStakingUI() {
+    await updateMcfBalance();
+    await loadAllStakes();
+}
+
+// Разрешение (Approve)
+async function approveStaking() {
+    if (!signer || !tokenContract) return;
+
+    try {
+        const amountToApprove = ethers.constants.MaxUint256;
+        stakingStatus.textContent = 'Ожидание подтверждения Approve...';
+        
+        const tx = await tokenContract.approve(STAKING_CONTRACT_ADDRESS, amountToApprove);
+        stakingStatus.textContent = 'Транзакция Approve отправлена, ожидаем подтверждения...';
+        await tx.wait();
+
+        stakingStatus.textContent = '✅ Успешно! Разрешение на стейкинг установлено.';
+    } catch (err) {
+        console.error("Ошибка Approve:", err);
+        stakingStatus.textContent = '❌ Ошибка Approve. Проверьте консоль.';
+    }
+}
+
+// Стейкинг
+async function stakeTokens() {
+    if (!signer || !stakingContract) return;
+    
+    const amount = stakeAmountInput.value;
+    const tier = parseInt(stakeTierSelect.value);
+    
+    if (isNaN(amount) || amount <= 0 || tier < 0) {
+        stakingStatus.textContent = 'Введите корректное количество и выберите Tier.';
+        return;
+    }
+    
+    try {
+        const amountWei = parseMcf(amount);
+        
+        stakingStatus.textContent = `Ожидание подтверждения стейкинга ${amount} MCF...`;
+
+        // *** ПРОВЕРКА: stakingContract.stake(amountWei, tier) - должно работать, если функция есть в ABI
+        const tx = await stakingContract.stake(amountWei, tier);
+
+        stakingStatus.textContent = 'Транзакция стейкинга отправлена, ожидаем подтверждения...';
+        await tx.wait();
+
+        stakingStatus.textContent = `✅ Успешно! ${amount} MCF застейканы в Tier ${tier}.`;
+        stakeAmountInput.value = '';
+        updateStakingUI(); 
+        
+    } catch (err) {
+        console.error("Ошибка стейкинга:", err);
+        const errorMsg = err.data && err.data.message ? err.data.message : err.message;
+        stakingStatus.textContent = `❌ Ошибка стейкинга: ${errorMsg.substring(0, 70)}...`;
+    }
+}
+
+/**
+ * Снятие заблокированного лота (Tier 1, 2, 3)
+ */
+async function unstakeLot(stakeId) {
+    if (!signer || !stakingContract) return;
+
+    try {
+        stakingStatus.textContent = `Ожидание подтверждения Unstake для Лота ID ${stakeId}...`;
+
+        // *** ПРОВЕРКА: stakingContract.unstakeLot(stakeId) - должно работать, если функция есть в ABI
+        const tx = await stakingContract.unstakeLot(stakeId);
+
+        stakingStatus.textContent = 'Транзакция Unstake отправлена, ожидаем подтверждения...';
+        await tx.wait();
+
+        stakingStatus.textContent = `✅ Успешно! Лоты ID ${stakeId} снят и награда получена.`;
+        updateStakingUI();
+    } catch (err) {
+        console.error("Ошибка Unstake Lot:", err);
+        const errorMsg = err.data && err.data.message ? err.data.message : err.message;
+        stakingStatus.textContent = `❌ Ошибка Unstake Lot: ${errorMsg.substring(0, 70)}... Убедитесь, что время блокировки истекло!`;
+    }
+}
+
+/**
+ * Снятие гибкого стейка (Tier 0)
+ */
+async function unstakeTier(tier) {
+    if (!signer || !stakingContract) return;
+    
+    if (tier !== 0) {
+          stakingStatus.textContent = 'Ошибка: Эта функция только для Гибкого стейка (Tier 0).';
+          return;
+    }
+
+    try {
+        stakingStatus.textContent = `Ожидание подтверждения Unstake для Гибкого Tier ${tier}...`;
+
+        // *** ПРОВЕРКА: stakingContract.unstake(tier) - должно работать, если функция есть в ABI
+        const tx = await stakingContract.unstake(tier);
+
+        stakingStatus.textContent = 'Транзакция Unstake отправлена, ожидаем подтверждения...';
+        await tx.wait();
+
+        stakingStatus.textContent = `✅ Успешно! Гибкий стейк снят и награда получена.`;
+        updateStakingUI();
+    } catch (err) {
+        console.error("Ошибка Unstake Tier 0:", err);
+        const errorMsg = err.data && err.data.message ? err.data.message : err.message;
+        stakingStatus.textContent = `❌ Ошибка Unstake Tier 0: ${errorMsg.substring(0, 70)}...`;
+    }
+}
+
+// --- ФУНКЦИИ МИНТИНГА ---
+
+async function getMintPrice() {
+    if (!tokenContract || !provider) {
+        mintStatus.textContent = 'Ошибка: Контракт или провайдер не инициализированы.';
+        return;
+    }
+
+    try {
+        mintStatus.textContent = 'Загрузка цены минтинга...';
+        
+        // *** ИСПРАВЛЕНИЕ #3: Делаем форму минта видимой до запроса цены ***
+        if (mintForm) {
+            mintForm.classList.remove('hidden');
+        }
+
+        dynamicMintPrice = await tokenContract.mintPrice();
+        
+        if (dynamicMintPrice.isZero()) {
+            mintStatus.textContent = '❌ Внимание! Цена минтинга (mintPrice) в контракте установлена на 0.';
+        } else {
+            mintStatus.textContent = '';
+        }
+        
+        updateCost();
+
+    } catch (err) {
+        console.error("Ошибка получения цены:", err);
+        mintStatus.textContent = `❌ Не удалось загрузить цену. Ошибка: ${err.message.substring(0, 50)}...`;
+        dynamicMintPrice = null; 
+    }
+}
+
+function updateCost() { 
+    if (!dynamicMintPrice || dynamicMintPrice.isZero()) return;
+    const amount = mintAmountInput.value;
+    if (isNaN(amount) || amount <= 0) {
+        costDisplay.textContent = 'Стоимость: 0 ETH';
+        ethAmountInput.value = '';
+        mcfResultDisplay.textContent = 'Вы получите: 0 MCF';
+        return;
+    }
+    try {
+        const amountBN = parseMcf(amount).div(EIGHTEEN_DECIMALS); 
+        const totalPaymentWei = amountBN.mul(dynamicMintPrice);
+        const totalPaymentEth = ethers.utils.formatEther(totalPaymentWei);
+        
+        costDisplay.textContent = `Стоимость: ${parseFloat(totalPaymentEth).toFixed(6)} ETH (плюс газ)`;
+        ethAmountInput.value = parseFloat(totalPaymentEth).toFixed(6);
+        mcfResultDisplay.textContent = `Вы получите: ${amount} MCF`;
+    } catch (err) {
+        costDisplay.textContent = 'Ошибка расчета';
+    }
+}
+
+function calculateMcfForEth() { 
+    if (!dynamicMintPrice || dynamicMintPrice.isZero()) return;
+    const ethAmount = ethAmountInput.value;
+    if (isNaN(ethAmount) || ethAmount <= 0) {
+        mcfResultDisplay.textContent = 'Вы получите: 0 MCF';
+        mintAmountInput.value = '';
+        return;
+    }
+    try {
+        const ethInWei = ethers.utils.parseEther(ethAmount);
+        
+        const mcfAmount = ethInWei.div(dynamicMintPrice).toString();
+        
+        mcfResultDisplay.textContent = `Вы получите: ${mcfAmount} MCF`;
+        mintAmountInput.value = mcfAmount;
+        costDisplay.textContent = `Стоимость: ${ethAmount} ETH (плюс газ)`;
+    } catch (err) {
+        mcfResultDisplay.textContent = 'Ошибка расчета';
+    }
+}
+
+async function mintTokens() {
+    if (!signer || !tokenContract || !dynamicMintPrice) {
+        mintStatus.textContent = 'Пожалуйста, подключите кошелек.';
+        return;
+    }
+    if (dynamicMintPrice.isZero()) {
+          mintStatus.textContent = '❌ Невозможно минтить. Цена токена равна 0.';
+          return;
+    }
+
+    const amount = mintAmountInput.value;
+    if (isNaN(amount) || amount <= 0) {
+        mintStatus.textContent = 'Введите корректное количество MCF.';
+        return;
+    }
+    
+    try {
+        const amountBN = parseMcf(amount).div(EIGHTEEN_DECIMALS); 
+        const totalPaymentWei = amountBN.mul(dynamicMintPrice);
+
+        mintStatus.textContent = 'Ожидание подтверждения транзакции...';
+
+        const tx = await tokenContract.mint(amountBN, {
+            value: totalPaymentWei
+        });
+
+        mintStatus.textContent = 'Транзакция отправлена, ожидаем подтверждения...';
+        await tx.wait();
+
+        mintStatus.textContent = `✅ Успешно заминтили ${amount} MCF!`;
+        alert(`🎉 Поздравляем! Вы успешно заминтили ${amount} MCF токенов!`);
+
+        mintAmountInput.value = '';
+        ethAmountInput.value = '';
+        updateUI(); 
+        updateStakingUI(); 
+        
+    } catch (err) {
+        console.error("Ошибка минтинга:", err);
+        if (err.code === 4001) {
+            mintStatus.textContent = '❌ Транзакция отклонена пользователем.';
+        } else {
+            const errorMsg = err.data && err.data.message ? err.data.message : err.message;
+            if (errorMsg.includes("Max supply limit reached")) {
+                mintStatus.textContent = '❌ Ошибка: Достигнут лимит общего предложения токена (MAX_SUPPLY).';
+            } else {
+                mintStatus.textContent = `❌ Ошибка. Проверьте: достаточно ли ETH, лимиты и цену. Ошибка: ${errorMsg.substring(0, 70)}...`;
+            }
+        }
+    }
+}
+
+
+// --- ОСНОВНЫЕ ФУНКЦИИ ---
+
+async function connectWallet() {
+    const connectButton = document.getElementById('connectButton');
+    
+    if (!window.ethereum) {
+        if (connectButton) {
+            connectButton.textContent = 'Установите MetaMask';
+            connectButton.disabled = true;
+        }
+        mintStatus.textContent = 'Пожалуйста, установите MetaMask.';
+        stakingStatus.textContent = 'Пожалуйста, установите MetaMask.';
+        return;
+    }
+    
+    try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        currentAccount = accounts[0];
+
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        signer = provider.getSigner();
+        
+        tokenContract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, TOKEN_ABI, signer);
+        stakingContract = new ethers.Contract(STAKING_CONTRACT_ADDRESS, STAKING_ABI, signer);
+
+        await updateUI(); 
+        
+        // ** Загрузка минтинга:
+        mintStatus.textContent = 'Загрузка данных минтинга...'; 
+        await getMintPrice(); 
+
+        // ** Загрузка стейкинга:
+        stakingStatus.textContent = 'Загрузка данных стейкинга...'; 
+        await updateStakingUI();
+
+        if (connectButton) {
+            const shortAddress = currentAccount.substring(0, 6) + "..." + currentAccount.slice(-4);
+            connectButton.textContent = shortAddress; 
+            connectButton.classList.add('connected');
+        }
+        
+        window.ethereum.on('accountsChanged', handleAccountsChanged);
+        window.ethereum.on('chainChanged', () => window.location.reload());
+        
+    } catch (err) {
+        handleAccountsChanged([]);
+        
+        if (connectButton) {
+              connectButton.textContent = 'Подключить кошелек';
+              connectButton.classList.remove('connected');
+        }
+
+        if (err.code === 4001) {
+            mintStatus.textContent = '❌ Подключение отклонено пользователем.';
+            stakingStatus.textContent = '❌ Подключение отклонено пользователем.';
+        } else {
+            mintStatus.textContent = '❌ Ошибка подключения. Убедитесь, что MetaMask разблокирован.';
+            stakingStatus.textContent = '❌ Ошибка подключения. Убедитесь, что MetaMask разблокирован.';
+            console.error(err);
+        }
+    }
+}
+        
+async function updateUI() {
+    if (!currentAccount || !provider) return;
+    
+    try {
+        const [network, balanceWei] = await Promise.all([
+            provider.getNetwork(),
+            provider.getBalance(currentAccount)
+        ]);
+
+        networkDisplay.textContent = network.name; 
+        document.getElementById('networkDisplay').classList.remove('hidden');
+
+        const balanceEth = ethers.utils.formatEther(balanceWei);
+        balanceDisplay.textContent = parseFloat(balanceEth).toFixed(4);
+        document.getElementById('balanceDisplay').classList.remove('hidden');
+        
+    } catch (err) {
+        console.error("Ошибка обновления UI (сети/баланса):", err);
+    }
+}
+
+
+function handleAccountsChanged(accounts) {
+    if (accounts.length === 0) {
+        currentAccount = null;
+        connectButton.textContent = 'Подключить кошелек';
+        mintForm.classList.add('hidden');
+        stakingForm.classList.add('hidden'); 
+        document.getElementById('networkDisplay').classList.add('hidden');
+        document.getElementById('balanceDisplay').classList.add('hidden');
+        mintStatus.textContent = 'Кошелек отключен.';
+        stakingStatus.textContent = 'Кошелек отключен.';
+
+        Object.values(timerIntervals).forEach(clearInterval);
+        timerIntervals = {};
+        userStakesContainer.innerHTML = `<p id="noStakesMessage" style="color: #ccc;">Нет активных заблокированных стейков.</p>`;
+        
+    } else {
+        currentAccount = accounts[0];
+        connectWallet();
+    }
+}
+        
+window.addEventListener('load', () => {
+    if (window.ethereum && window.ethereum.selectedAddress) {
+        connectWallet();
+    } else if (!window.ethereum) {
+          const msg = '❌ MetaMask не обнаружен. Пожалуйста, установите его.';
+          mintStatus.textContent = msg;
+          stakingStatus.textContent = msg;
+    }
+
+    const connectButton = document.getElementById('connectButton');
+    if (connectButton) {
+        connectButton.addEventListener('click', () => {
+            if (currentAccount) {
+                handleAccountsChanged([]); 
+            } else {
+                connectWallet();
+            }
+        });
+    }
+});
+        
+// --- КОНФИГУРАЦИЯ СЕТИ SEPOLIA ---
+const SEPOLIA_PARAMS = {
+    chainId: '0xaa36a7', // 11155111 в десятичной системе
+    chainName: 'Sepolia Testnet',
+    nativeCurrency: {
+        name: 'SepoliaETH',
+        symbol: 'sepETH',
+        decimals: 18
+    },
+    rpcUrls: ['https://sepolia.infura.io/v3/9aa3d95b3bc940fa88ea12eaa4456161'],
+    blockExplorerUrls: ['https://sepolia.etherscan.io/']
+};
+
+async function addSepoliaChain() {
+    if (!window.ethereum) {
+        alert('MetaMask не установлен.');
+        return;
+    }
+
+    try {
+        await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: SEPOLIA_PARAMS.chainId }]
+        });
+        
+        alert('Успешно переключено на Sepolia!');
+        window.location.reload(); 
+
+    } catch (switchError) {
+        if (switchError.code === 4902) {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [SEPOLIA_PARAMS]
+                });
+                
+                alert('Сеть Sepolia добавлена и выбрана!');
+                window.location.reload(); 
+
+            } catch (addError) {
+                console.error("Ошибка при добавлении сети:", addError);
+                alert('Пользователь отклонил добавление сети Sepolia.');
+            }
+        } else if (switchError.code === 4001) {
+            alert('Пользователь отклонил переключение на сеть Sepolia.');
+        } else {
+            console.error("Ошибка при переключении/добавлении сети:", switchError);
+            alert('Не удалось выполнить операцию с сетью. Проверьте консоль.');
+        }
+    }
+}
+
+// --- ДОБАВЛЕНИЕ ТОКЕНА В МЕТАМАСК ---
+const MCF_TOKEN_ADDRESS_FOR_MM = '0xb66008C221CE3699c7F50AebB07898695845e95f';
+const TOKEN_SYMBOL = 'MCF';
+const TOKEN_DECIMALS = 18; 
+
+async function addTokenToMetamask() {
+    if (!window.ethereum) {
+        alert('Пожалуйста, установите MetaMask для добавления токена.');
+        return;
+    }
+
+    try {
+        const wasAdded = await window.ethereum.request({
+            method: 'wallet_watchAsset',
+            params: {
+                type: 'ERC20', 
+                options: {
+                    address: MCF_TOKEN_ADDRESS_FOR_MM, 
+                    symbol: TOKEN_SYMBOL, 
+                    decimals: TOKEN_DECIMALS, 
+                    image: 'https://i.ibb.co/mVJrrGwY/image-2.png'
+                },
+            },
+        });
+
+        if (wasAdded) {
+            console.log('Токен MCF успешно добавлен в MetaMask!');
+        } else {
+            console.log('Пользователь отклонил добавление токена.');
+        }
+    } catch (error) {
+        console.error("Ошибка при добавлении токена:", error);
+        alert('Произошла ошибка при попытке добавить токен.');
+    }
+}
+
+
+// -------------------------------------------------------------------
+// Код нейронной сети (Часть 5) 
+// -------------------------------------------------------------------
+(function() {
+    // Получаем элемент Canvas
+    const canvas = document.getElementById('neural-net-background');
+    if (!canvas) return; // Проверка на наличие элемента
+    const ctx = canvas.getContext('2d');
+
+    // Массив для хранения всех точек (частиц)
+    let particles = [];
+    // Настройки
+    const numParticles = 80; // Количество точек
+    const maxDistance = 140; // Максимальное расстояние для соединения нитями
+
+    // 1. Устанавливаем размеры Canvas
+    function setCanvasSize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    setCanvasSize();
+    window.addEventListener('resize', setCanvasSize);
+
+    // 2. Класс для создания одной точки
+    class Particle {
+        constructor() {
+            // Случайные координаты на экране
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            // Случайная скорость и направление
+            this.velocity = {
+                x: (Math.random() - 0.5) * 0.5,
+                y: (Math.random() - 0.5) * 0.5
+            };
+            // Размер точки
+            this.size = Math.random() * 2 + 0.5;
+            // Цвет (можно изменить)
+            this.color = 'rgba(11, 240, 190, 0.8)'; 
+        }
+
+        // Рисуем точку
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Обновляем позицию
+        update() {
+            // Изменяем позицию
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
+            
+            // Отскок от краев (чтобы точки не уходили за пределы)
+            if (this.x > canvas.width || this.x < 0) this.velocity.x = -this.velocity.x;
+            if (this.y > canvas.height || this.y < 0) this.velocity.y = -this.velocity.y;
+        }
+    }
+
+    // 3. Инициализация (создание) всех точек
+    function init() {
+        for (let i = 0; i < numParticles; i++) {
+            particles.push(new Particle());
+        }
+    }
+
+    // 4. Отрисовка нитей между точками
+    function connect() {
+        for (let i = 0; i < numParticles; i++) {
+            for (let j = i; j < numParticles; j++) {
+                const p1 = particles[i];
+                const p2 = particles[j];
+
+                // Вычисляем расстояние между точками
+                const distance = Math.sqrt(
+                    Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)
+                );
+
+                // Если расстояние меньше максимального, рисуем линию
+                if (distance < maxDistance) {
+                    // Чем дальше точки, тем прозрачнее линия
+                    const opacity = 1 - (distance / maxDistance); 
+
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`; 
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+
+    // 5. Главный цикл анимации
+    function animate() {
+        requestAnimationFrame(animate); // Запрашиваем следующий кадр
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Очищаем предыдущий кадр
+
+        connect(); // Рисуем нити
+        
+        // Обновляем и рисуем все точки
+        particles.forEach(p => {
+            p.update();
+            p.draw();
+        });
+    }
+
+    // Запускаем
+    init();
+    animate();
+})();
+     
+
+    </script>
+    <!-- <script src="JavaScript.js"></script> -->
+    
+</body>
+</html>
