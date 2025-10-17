@@ -52,12 +52,12 @@
             </div>
             <p id="mintStatus">Нажмите "Подключить кошелек"</p>
         </div>
-        
+        <!-- ---------------------------------------- -->
         <div class="app-box staking-box">
             <h2>Стейкинг токена MCF</h2>
             <div id="stakingForm" class="hidden">
                 <p>Ваш MCF баланс: <span id="mcfBalanceDisplay">...</span> MCF</p>
-                <!-- <button class="button-approve" onclick="approveStaking()">Разрешить стейкинг (Approve)</button> -->
+                
                 
                 <h3>Ваши активные стейки</h3>
                 <div id="userStakesContainer">
@@ -194,7 +194,7 @@ function startCountdown(stakeId, unlockTimestamp) {
                 timerElement.textContent = formatTime(remainingSeconds);
                 if (unstakeButton) {
                     unstakeButton.disabled = true;
-                    unstakeButton.textContent = `Разблокировка через...`;
+                    unstakeButton.textContent = `Дождитесь разблокировки`;
                 }
             }
         } else {
@@ -209,6 +209,7 @@ function startCountdown(stakeId, unlockTimestamp) {
 
 // --- ФУНКЦИИ СТЕЙКИНГА ---
 
+
 async function loadAllStakes() {
     if (!currentAccount || !stakingContract) {
         return;
@@ -219,7 +220,6 @@ async function loadAllStakes() {
     userStakesContainer.innerHTML = ''; 
     stakingStatus.textContent = 'Загрузка ваших стейков...';
 
-    // *** ИСПРАВЛЕНИЕ: Делаем форму видимой сразу после начала загрузки ***
     if (stakingForm) {
         stakingForm.classList.remove('hidden');
     }
@@ -228,39 +228,67 @@ async function loadAllStakes() {
         const userStakesArray = await stakingContract.getAllUserStakes(currentAccount);
 
         if (userStakesArray.length === 0) {
-            userStakesContainer.innerHTML = `<p id="noStakesMessage" style="color: #ccc;">Нет активных заблокированных стейков.</p>`;
+            userStakesContainer.innerHTML = `<p id="noStakesMessage" style="color: #ccc;">Нет активных стейков.</p>`;
             stakingStatus.textContent = '';
             return;
         }
 
         let flexibleAmount = ethers.BigNumber.from(0);
-        
-        for (const stake of userStakesArray) {
-            if (!stake.isActive) continue;
+        let flexibleReward = ethers.BigNumber.from(0); 
+        window.flexibleStakeIds = []; 
 
+        for (const stake of userStakesArray) {
+            
+            // Первичная проверка на isActive (уже была, оставляем)
+            if (stake.isActive === false) {
+                continue; 
+            }
+            
             const stakeId = stake.stakeId.toString();
             const amount = stake.amount;
-            const startTime = stake.startTime.toNumber(); 
-            const lockDuration = stake.lockDuration.toNumber();
-            const tierId = stake.tier.hasOwnProperty('_hex') 
-            ? stake.tier.toNumber() 
-            : stake.tier;
+            const tierId = stake.tier.hasOwnProperty('_hex') ? stake.tier.toNumber() : stake.tier; 
+            const startTime = stake.startTime.hasOwnProperty('_hex') ? stake.startTime.toNumber() : stake.startTime;
+            const lockDuration = stake.lockDuration.hasOwnProperty('_hex') ? stake.lockDuration.toNumber() : stake.lockDuration;
+            
             const unlockTimestamp = startTime + lockDuration;
+
+            let lotRewardWei = ethers.BigNumber.from(0);
+            
+            // *** ВТОРИЧНАЯ ЗАЩИТА: Перехват ошибки контракта для невалидных лотов ***
+            try {
+                // Вызов calculateRewardForLot()
+                lotRewardWei = await stakingContract.calculateRewardForLot(stakeId); 
+            } catch (e) {
+                // Если контракт вернул ошибку "Stake is not active or does not exist", 
+                // мы считаем лот невалидным для отображения и пропускаем его.
+                if (e.reason && e.reason.includes("Stake is not active or does not exist")) {
+                     console.warn(`Лот ${stakeId} пропущен: Контракт считает его неактивным/несуществующим.`);
+                     continue; // Пропускаем лот, который вызвал ошибку
+                }
+                // Для любых других неожиданных ошибок выводим предупреждение
+                console.warn(`Неизвестная ошибка при расчете награды для лота ${stakeId}.`, e);
+                // Оставляем lotRewardWei = 0 и продолжаем, чтобы не сломать весь интерфейс
+            }
+            // *************************************************************************
 
             if (tierId === 0) {
                 flexibleAmount = flexibleAmount.add(amount);
+                flexibleReward = flexibleReward.add(lotRewardWei);
+                window.flexibleStakeIds.push(stakeId); 
                 continue;
             }
 
+            // Создание карточки для заблокированного лота (Tier 1, 2, 3)
             const card = document.createElement('div');
             card.className = 'stake-card';
             card.innerHTML = `
-                <h4>Tier ${tierId}: ${TIER_CONFIGS[tierId].name} (${TIER_CONFIGS[tierId].apy} APY)</h4>
+                <h4>Блокировка на ${TIER_CONFIGS[tierId].name} (${TIER_CONFIGS[tierId].apy} APY)</h4>
                 <p>Сумма: <strong>${parseFloat(formatMcf(amount)).toFixed(2)} MCF</strong></p>
+                <p>Награда: <strong>${parseFloat(formatMcf(lotRewardWei)).toFixed(4)} MCF</strong></p> 
                 <p>Начало: ${new Date(startTime * 1000).toLocaleString()}</p>
                 <div class="timer-display" id="timer-${stakeId}">...</div>
                 <button class="button-unstake" id="unstake-btn-${stakeId}" data-stake-id="${stakeId}" onclick="unstakeLot(${stakeId})" disabled>
-                    Разблокировка через...
+                    Дождитесь разблокировки
                 </button>
             `;
             userStakesContainer.appendChild(card);
@@ -268,23 +296,16 @@ async function loadAllStakes() {
             startCountdown(stakeId, unlockTimestamp);
         }
 
+        // ... (блок отображения гибкого стейка)
         if (!flexibleAmount.isZero()) {
-            let rewardWei = ethers.BigNumber.from(0);
-            try {
-                // *** ИСПРАВЛЕНИЕ: ПРОВЕРЬТЕ, что ваша функция называется calculateRewardForTier(address, uint8) ***
-                rewardWei = await stakingContract.calculateRewardForTier(currentAccount, 0); 
-            } catch (e) {
-                console.warn("Не удалось получить награду для гибкого стейка. Проверьте ABI на calculateRewardForTier.", e);
-            }
-            
             const flexibleCard = document.createElement('div');
             flexibleCard.className = 'stake-card flexible-card';
             flexibleCard.innerHTML = `
-                <h4>Tier 0: Гибкий (${TIER_CONFIGS[0].apy} APY)</h4>
+                <h4>Гибкий (${TIER_CONFIGS[0].apy} APY)</h4>
                 <p>Общая сумма: <strong>${parseFloat(formatMcf(flexibleAmount)).toFixed(2)} MCF</strong></p>
-                <p>Награда: <strong>${parseFloat(formatMcf(rewardWei)).toFixed(4)} MCF</strong></p>
-                <button class="button-unstake" data-tier-id="0" onclick="unstakeTier(0)">
-                    Снять гибкий стейк & Забрать награду
+                <p>Награда: <strong>${parseFloat(formatMcf(flexibleReward)).toFixed(4)} MCF</strong></p> 
+                <button class="button-unstake tier-zero-btn" data-tier-id="0" onclick="unstakeTier(0)">
+                    Снять гибкий стейк и Забрать награду 
                 </button>
             `;
             userStakesContainer.insertBefore(flexibleCard, userStakesContainer.firstChild); 
@@ -294,10 +315,13 @@ async function loadAllStakes() {
         
     } catch (err) {
         console.error("КРИТИЧЕСКАЯ ОШИБКА загрузки лотов стейкинга:", err);
-        stakingStatus.textContent = `❌ Ошибка: Не удалось загрузить лоты. Проверьте ABI/адрес контракта стейкинга.`;
-        userStakesContainer.innerHTML = `<p id="noStakesMessage" style="color: #ccc;">Не удалось загрузить лоты. Проверьте консоль для деталей.</p>`;
+        stakingStatus.textContent = `❌ Критическая ошибка: Не удалось загрузить лоты. Проверьте консоль для деталей.`;
+        userStakesContainer.innerHTML = `<p id="noStakesMessage" style="color: #ccc;">Критическая ошибка загрузки. Проверьте консоль.</p>`;
     }
 }
+
+
+
 
 async function updateMcfBalance() {
     if (!currentAccount || !tokenContract) return;
@@ -396,29 +420,46 @@ async function unstakeLot(stakeId) {
 /**
  * Снятие гибкого стейка (Tier 0)
  */
+// --- ФУНКЦИИ СНЯТИЯ СТЕЙКА (Окончательное исправление: Цикл для Tier 0) ---
+
+/**
+ * Снятие гибкого стейка (Tier 0)
+ * Вызывает unstakeLot для каждого найденного лота Tier 0.
+ */
 async function unstakeTier(tier) {
     if (!signer || !stakingContract) return;
     
-    if (tier !== 0) {
-          stakingStatus.textContent = 'Ошибка: Эта функция только для Гибкого стейка (Tier 0).';
+    if (tier !== 0 || !window.flexibleStakeIds || window.flexibleStakeIds.length === 0) {
+          stakingStatus.textContent = 'Ошибка: Нет активных гибких стейков для снятия.';
           return;
     }
+    
+    const stakeIdsToUnstake = window.flexibleStakeIds;
+    let successCount = 0;
 
     try {
-        stakingStatus.textContent = `Ожидание подтверждения Unstake для Гибкого Tier ${tier}...`;
+        stakingStatus.textContent = `Начало снятия ${stakeIdsToUnstake.length} гибких лотов... (требуется несколько подтверждений)`;
 
-        // *** ПРОВЕРКА: stakingContract.unstake(tier) - должно работать, если функция есть в ABI
-        const tx = await stakingContract.unstake(tier);
+        for (let i = 0; i < stakeIdsToUnstake.length; i++) {
+            const stakeId = stakeIdsToUnstake[i];
+            
+            stakingStatus.textContent = `Ожидание подтверждения Unstake для лота ${i + 1} из ${stakeIdsToUnstake.length} (ID: ${stakeId})...`;
+            
+            // Вызываем unstakeLot для каждого лота
+            const tx = await stakingContract.unstakeLot(stakeId); 
 
-        stakingStatus.textContent = 'Транзакция Unstake отправлена, ожидаем подтверждения...';
-        await tx.wait();
+            stakingStatus.textContent = `Транзакция для лота ${i + 1} отправлена, ожидаем подтверждения...`;
+            await tx.wait();
+            successCount++;
+        }
 
-        stakingStatus.textContent = `✅ Успешно! Гибкий стейк снят и награда получена.`;
+        stakingStatus.textContent = `✅ Успешно! Снято ${successCount} гибких лотов и получена награда.`;
         updateStakingUI();
+        
     } catch (err) {
-        console.error("Ошибка Unstake Tier 0:", err);
+        console.error("КРИТИЧЕСКАЯ ОШИБКА Unstake Tier 0:", err);
         const errorMsg = err.data && err.data.message ? err.data.message : err.message;
-        stakingStatus.textContent = `❌ Ошибка Unstake Tier 0: ${errorMsg.substring(0, 70)}...`;
+        stakingStatus.textContent = `❌ Ошибка! Успешно снято ${successCount} лотов, но транзакция №${successCount + 1} завершилась ошибкой. Проверьте консоль. Ошибка: ${errorMsg.substring(0, 70)}...`;
     }
 }
 
